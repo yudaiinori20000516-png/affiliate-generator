@@ -11,7 +11,9 @@ const client = new Anthropic();
 const ARTICLES_DIR = "./articles/ai-fukugyou";
 const STRATEGY_FILE = "./claude_code_strategy_output.md";
 const PAID_MARKER_PATTERN = /【ここから有料部分｜(\d+)円】/g;
-const DEFAULT_PAID_PRICE = "100";
+const DEFAULT_PAID_PRICE = 100;
+const MIN_PAID_PRICE = 100;
+const MAX_PAID_PRICE = 50000;
 
 // 楽天API設定
 const RAKUTEN_APP_ID = process.env.RAKUTEN_APP_ID;
@@ -290,8 +292,11 @@ function generateToc(content) {
 function preparePaidArticleBody(body) {
   const matches = [...body.matchAll(PAID_MARKER_PATTERN)];
   const isPaid = matches.length > 0;
-  const rawPrice = matches[0]?.[1] ?? DEFAULT_PAID_PRICE;
-  const price = String(parseInt(rawPrice, 10) || parseInt(DEFAULT_PAID_PRICE, 10));
+  const rawPrice = parseInt(matches[0]?.[1] ?? String(DEFAULT_PAID_PRICE), 10);
+  const price = Number.isInteger(rawPrice) ? rawPrice : DEFAULT_PAID_PRICE;
+  if (isPaid && (price < MIN_PAID_PRICE || price > MAX_PAID_PRICE)) {
+    throw new Error(`有料記事価格が範囲外です: ${price}円。${MIN_PAID_PRICE}〜${MAX_PAID_PRICE}円で指定してください。`);
+  }
   const cleanedBody = body
     .replace(PAID_MARKER_PATTERN, "")
     .replace(/\n{3,}/g, "\n\n")
@@ -609,7 +614,7 @@ async function postToNote(title, body, thumbnailPath) {
 
         const priceInput = page.locator('input[type="number"], input[placeholder*="価格"], input[placeholder*="円"]').first();
         if (await priceInput.isVisible({ timeout: 5000 }).catch(() => false)) {
-          await priceInput.fill(price);
+          await priceInput.fill(String(price));
           console.log(`  ✅ 価格${price}円設定完了`);
         } else {
           throw new Error("価格入力欄が見つかりません。有料記事として安全に投稿できないため停止します。");
