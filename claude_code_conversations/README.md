@@ -14,6 +14,16 @@ Each log contains:
 npm run monitor:claude
 ```
 
+The first monitor run creates `latest.md` automatically if it does not exist.
+
+Claude Code must be logged in before notifications can produce responses:
+
+```bash
+claude auth login
+```
+
+Conversation logs are local runtime artifacts and are ignored by Git.
+
 Use:
 
 ```bash
