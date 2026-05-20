@@ -5,7 +5,9 @@
   "main": "generate.js",
   "type": "module",
   "scripts": {
-    "generate": "node generate.js"
+    "generate": "node generate.js",
+    "notify:claude": "scripts/notify-claude-code.sh",
+    "push:notify": "scripts/codex-push-notify.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
