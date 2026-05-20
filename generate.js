@@ -13,7 +13,7 @@ const STRATEGY_FILE = "./claude_code_strategy_output.md";
 const PAID_MARKER_PATTERN = /【ここから有料部分｜(\d+)円】/g;
 const DEFAULT_PAID_PRICE = 100;
 const MIN_PAID_PRICE = 100;
-const MAX_PAID_PRICE = 50000;
+const MAX_PAID_PRICE = 9999;
 
 // 楽天API設定
 const RAKUTEN_APP_ID = process.env.RAKUTEN_APP_ID;
