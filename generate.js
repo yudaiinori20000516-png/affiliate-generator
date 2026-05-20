@@ -10,7 +10,7 @@ const client = new Anthropic();
 
 const ARTICLES_DIR = "./articles/ai-fukugyou";
 const STRATEGY_FILE = "./claude_code_strategy_output.md";
-const PAID_MARKER = "【ここから有料部分｜100円】";
+const PAID_MARKER_PATTERN = /【ここから有料部分｜(\d+)円】/g;
 const DEFAULT_PAID_PRICE = "100";
 
 // 楽天API設定
@@ -288,12 +288,14 @@ function generateToc(content) {
 }
 
 function preparePaidArticleBody(body) {
-  const isPaid = body.includes(PAID_MARKER);
+  const matches = [...body.matchAll(PAID_MARKER_PATTERN)];
+  const isPaid = matches.length > 0;
+  const price = matches[0]?.[1] ?? DEFAULT_PAID_PRICE;
   const cleanedBody = body
-    .replace(PAID_MARKER, "")
+    .replace(PAID_MARKER_PATTERN, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-  return { body: cleanedBody, isPaid };
+  return { body: cleanedBody, isPaid, price };
 }
 
 function saveArticle(title, content) {
@@ -488,7 +490,7 @@ async function postToX(title) {
 }
 
 async function postToNote(title, body, thumbnailPath) {
-  const { body: noteBody, isPaid } = preparePaidArticleBody(body);
+  const { body: noteBody, isPaid, price } = preparePaidArticleBody(body);
   const browser = await chromium.launch({ headless: false });
   const page = await browser.newPage();
 
@@ -598,7 +600,7 @@ async function postToNote(title, body, thumbnailPath) {
     }
 
     if (isPaid) {
-      console.log(`  💰 有料記事設定中（${DEFAULT_PAID_PRICE}円）...`);
+      console.log(`  💰 有料記事設定中（${price}円）...`);
       const paidOption = page.locator('text=有料').first();
       if (await paidOption.isVisible({ timeout: 5000 }).catch(() => false)) {
         await paidOption.click();
@@ -606,14 +608,14 @@ async function postToNote(title, body, thumbnailPath) {
 
         const priceInput = page.locator('input[type="number"], input[placeholder*="価格"], input[placeholder*="円"]').first();
         if (await priceInput.isVisible({ timeout: 5000 }).catch(() => false)) {
-          await priceInput.fill(DEFAULT_PAID_PRICE);
-          console.log(`  ✅ 価格${DEFAULT_PAID_PRICE}円設定完了`);
+          await priceInput.fill(price);
+          console.log(`  ✅ 価格${price}円設定完了`);
         } else {
-          console.warn("  ⚠️  価格入力欄が見つかりません。有料設定を確認してください。");
+          throw new Error("価格入力欄が見つかりません。有料記事として安全に投稿できないため停止します。");
         }
         await page.waitForTimeout(1000);
       } else {
-        console.warn("  ⚠️  有料設定の選択肢が見つかりません。有料記事化を確認してください。");
+        throw new Error("有料設定の選択肢が見つかりません。有料記事として安全に投稿できないため停止します。");
       }
     }
 
