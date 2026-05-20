@@ -10,6 +10,8 @@ const client = new Anthropic();
 
 const ARTICLES_DIR = "./articles/ai-fukugyou";
 const STRATEGY_FILE = "./claude_code_strategy_output.md";
+const PAID_MARKER = "【ここから有料部分｜100円】";
+const DEFAULT_PAID_PRICE = "100";
 
 // 楽天API設定
 const RAKUTEN_APP_ID = process.env.RAKUTEN_APP_ID;
@@ -285,6 +287,15 @@ function generateToc(content) {
   return "【目次】\n" + tocLines.join("\n") + "\n";
 }
 
+function preparePaidArticleBody(body) {
+  const isPaid = body.includes(PAID_MARKER);
+  const cleanedBody = body
+    .replace(PAID_MARKER, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return { body: cleanedBody, isPaid };
+}
+
 function saveArticle(title, content) {
   ensureArticlesDir();
   const timestamp = getTimestamp();
@@ -477,6 +488,7 @@ async function postToX(title) {
 }
 
 async function postToNote(title, body, thumbnailPath) {
+  const { body: noteBody, isPaid } = preparePaidArticleBody(body);
   const browser = await chromium.launch({ headless: false });
   const page = await browser.newPage();
 
@@ -558,7 +570,7 @@ async function postToNote(title, body, thumbnailPath) {
     await page.keyboard.press("Enter");
     await page.waitForTimeout(300);
 
-    const chunks = body.match(/.{1,500}/gs) || [body];
+    const chunks = noteBody.match(/.{1,500}/gs) || [noteBody];
     for (const chunk of chunks) {
       await page.keyboard.type(chunk);
       await page.waitForTimeout(100);
@@ -583,6 +595,26 @@ async function postToNote(title, body, thumbnailPath) {
         await page.waitForTimeout(500);
       }
       console.log("  ✅ ハッシュタグ設定完了");
+    }
+
+    if (isPaid) {
+      console.log(`  💰 有料記事設定中（${DEFAULT_PAID_PRICE}円）...`);
+      const paidOption = page.locator('text=有料').first();
+      if (await paidOption.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await paidOption.click();
+        await page.waitForTimeout(1500);
+
+        const priceInput = page.locator('input[type="number"], input[placeholder*="価格"], input[placeholder*="円"]').first();
+        if (await priceInput.isVisible({ timeout: 5000 }).catch(() => false)) {
+          await priceInput.fill(DEFAULT_PAID_PRICE);
+          console.log(`  ✅ 価格${DEFAULT_PAID_PRICE}円設定完了`);
+        } else {
+          console.warn("  ⚠️  価格入力欄が見つかりません。有料設定を確認してください。");
+        }
+        await page.waitForTimeout(1000);
+      } else {
+        console.warn("  ⚠️  有料設定の選択肢が見つかりません。有料記事化を確認してください。");
+      }
     }
 
     // 投稿する
