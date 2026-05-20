@@ -290,7 +290,8 @@ function generateToc(content) {
 function preparePaidArticleBody(body) {
   const matches = [...body.matchAll(PAID_MARKER_PATTERN)];
   const isPaid = matches.length > 0;
-  const price = matches[0]?.[1] ?? DEFAULT_PAID_PRICE;
+  const rawPrice = matches[0]?.[1] ?? DEFAULT_PAID_PRICE;
+  const price = String(parseInt(rawPrice, 10) || parseInt(DEFAULT_PAID_PRICE, 10));
   const cleanedBody = body
     .replace(PAID_MARKER_PATTERN, "")
     .replace(/\n{3,}/g, "\n\n")
