@@ -8,11 +8,12 @@ import path from "path";
 import { TwitterApi } from "twitter-api-v2";
 import { chromium } from "playwright";
 import { generateThumbnail } from "./thumbnail.js";
+import { toPublicNoteUrl, validatePaidPrice } from "./paid-note.js";
 
 const client = new Anthropic();
 
 const TITLE = "【完全保存版】Claude Codeで副業を全自動化した全手順｜ゼロから月5万円の仕組みを作るまでにやったこと全部";
-const PRICE = 500;
+const PRICE = validatePaidPrice(500);
 
 // もしもアフィリエイト設定
 const MOSHIMO_A_ID = process.env.MOSHIMO_A_ID;
@@ -383,25 +384,27 @@ async function postToNote(body, thumbnailPath) {
     }
 
     // 有料記事設定
-    console.log("  💰 有料記事設定中（500円）...");
+    console.log(`  💰 有料記事設定中（${PRICE}円）...`);
     const paidRadio = page.locator('text=有料').first();
-    if (await paidRadio.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await paidRadio.click();
-      await page.waitForTimeout(1500);
-
-      // 価格入力
-      const priceInput = page.locator('input[type="number"], input[placeholder*="価格"], input[placeholder*="円"]').first();
-      if (await priceInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await priceInput.fill("500");
-        console.log("  ✅ 価格500円設定完了");
-      }
-      await page.waitForTimeout(1000);
+    if (!await paidRadio.isVisible({ timeout: 3000 }).catch(() => false)) {
+      throw new Error("有料設定の選択肢が見つかりません。有料記事として安全に投稿できないため停止します。");
     }
+    await paidRadio.click();
+    await page.waitForTimeout(1500);
+
+    // 価格入力
+    const priceInput = page.locator('input[type="number"], input[placeholder*="価格"], input[placeholder*="円"]').first();
+    if (!await priceInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+      throw new Error("価格入力欄が見つかりません。有料記事として安全に投稿できないため停止します。");
+    }
+    await priceInput.fill(String(PRICE));
+    console.log(`  ✅ 価格${PRICE}円設定完了`);
+    await page.waitForTimeout(1000);
 
     // 投稿
     await page.locator('button:has-text("投稿する")').last().click();
     await page.waitForTimeout(5000);
-    const url = page.url();
+    const url = toPublicNoteUrl(page.url());
     console.log(`  ✅ Note公開完了: ${url}`);
     return url;
   } finally {

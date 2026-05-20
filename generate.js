@@ -5,15 +5,12 @@ import readline from "readline";
 import { TwitterApi } from "twitter-api-v2";
 import { chromium } from "playwright";
 import { generateThumbnail } from "./thumbnail.js";
+import { preparePaidArticleBody, toPublicNoteUrl } from "./paid-note.js";
 
 const client = new Anthropic();
 
 const ARTICLES_DIR = "./articles/ai-fukugyou";
 const STRATEGY_FILE = "./claude_code_strategy_output.md";
-const PAID_MARKER_PATTERN = /【ここから有料部分｜(\d+)円】/g;
-const DEFAULT_PAID_PRICE = 100;
-const MIN_PAID_PRICE = 100;
-const MAX_PAID_PRICE = 9999;
 
 // 楽天API設定
 const RAKUTEN_APP_ID = process.env.RAKUTEN_APP_ID;
@@ -287,21 +284,6 @@ function generateToc(content) {
   if (headings.length === 0) return "";
   const tocLines = headings.map((h, i) => `${i + 1}. ${h}`);
   return "【目次】\n" + tocLines.join("\n") + "\n";
-}
-
-function preparePaidArticleBody(body) {
-  const matches = [...body.matchAll(PAID_MARKER_PATTERN)];
-  const isPaid = matches.length > 0;
-  const rawPrice = parseInt(matches[0]?.[1] ?? String(DEFAULT_PAID_PRICE), 10);
-  const price = Number.isInteger(rawPrice) ? rawPrice : DEFAULT_PAID_PRICE;
-  if (isPaid && (price < MIN_PAID_PRICE || price > MAX_PAID_PRICE)) {
-    throw new Error(`有料記事価格が範囲外です: ${price}円。${MIN_PAID_PRICE}〜${MAX_PAID_PRICE}円で指定してください。`);
-  }
-  const cleanedBody = body
-    .replace(PAID_MARKER_PATTERN, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-  return { body: cleanedBody, isPaid, price };
 }
 
 function saveArticle(title, content) {
@@ -632,7 +614,7 @@ async function postToNote(title, body, thumbnailPath) {
     await page.waitForTimeout(4000);
 
     // 公開完了確認
-    const url = page.url();
+    const url = toPublicNoteUrl(page.url());
     console.log(`  ✅ Note公開完了！ ${url}`);
     await page.waitForTimeout(2000);
 
@@ -674,12 +656,12 @@ async function processTitle(title) {
   const thumbnailPath = await generateThumbnail(title);
   console.log(`  サムネイル: ${thumbnailPath}`);
 
-  console.log("\n🐦 Xに投稿中...");
-  await postToX(title);
-
   console.log("\n📓 Noteに投稿中（サムネイル付き）...");
   const body = parseArticleBody(filepath);
   const noteUrl = await postToNote(title, body, thumbnailPath);
+
+  console.log("\n🐦 Xに投稿中...");
+  await postToX(title);
 
   console.log("\n🧵 Threadsに投稿中...");
   await postToThreads(title, noteUrl);
