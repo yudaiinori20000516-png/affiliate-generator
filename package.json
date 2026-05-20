@@ -1,0 +1,15 @@
+{
+  "name": "affiliate-generator",
+  "version": "1.0.0",
+  "description": "AIアフィリエイト記事自動生成ツール",
+  "main": "generate.js",
+  "type": "module",
+  "scripts": {
+    "generate": "node generate.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "playwright": "^1.59.1",
+    "twitter-api-v2": "^1.29.0"
+  }
+}

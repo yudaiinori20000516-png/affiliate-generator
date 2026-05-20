@@ -1,0 +1,13 @@
+node_modules/
+articles/
+images/
+thumbnails/
+svgs/
+.env
+*.log
+*.png
+*.svg
+*.txt
+*.md
+!CLAUDE.md
+replied_ids.json

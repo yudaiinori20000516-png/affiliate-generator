@@ -1,0 +1,10 @@
+.env
+node_modules/
+articles/
+images/
+thumbnails/
+svgs/
+*.log
+*.png
+*.txt
+.DS_Store
