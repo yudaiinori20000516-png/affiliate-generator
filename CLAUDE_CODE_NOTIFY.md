@@ -40,6 +40,28 @@ The transcript is saved under:
 claude_code_conversations/
 ```
 
+## Live Monitor
+
+Open a live monitor in the current terminal:
+
+```bash
+npm run monitor:claude
+```
+
+Open a separate Terminal window for monitoring:
+
+```bash
+npm run open:claude-monitor
+```
+
+The monitor follows:
+
+```bash
+claude_code_conversations/latest.md
+```
+
+`latest.md` is updated to point at the newest Claude Code conversation whenever `notify:claude` or `git codex-push` runs.
+
 ## Manual Notification
 
 To notify Claude Code without pushing:

@@ -35,6 +35,7 @@ mkdir -p "$LOG_DIR"
 TIMESTAMP="$(date '+%Y%m%d-%H%M%S')"
 BRANCH="$(git branch --show-current 2>/dev/null || true)"
 LOG_FILE="$LOG_DIR/${TIMESTAMP}-${EVENT}.md"
+LATEST_FILE="$LOG_DIR/latest.md"
 PROMPT_FILE="$(mktemp)"
 
 if [[ -n "$BEFORE" ]] && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
@@ -49,6 +50,8 @@ COMMITS="$(git log --oneline "$RANGE" 2>/dev/null || git log -1 --oneline "$AFTE
 STAT="$(git diff --stat "$RANGE" 2>/dev/null || true)"
 FILES="$(git diff --name-only "$RANGE" 2>/dev/null || true)"
 LAST_COMMIT="$(git show --no-patch --format='%h %s%nAuthor: %an%nDate: %ad' "$AFTER")"
+
+ln -sf "$(basename "$LOG_FILE")" "$LATEST_FILE"
 
 cat > "$PROMPT_FILE" <<EOF
 あなたはClaude Codeです。Codexが変更をpushしたので、指示役として変更内容を確認してください。
@@ -82,6 +85,10 @@ ${STAT}
 4. 次にCodexへ依頼すべき具体的な改善があれば挙げる
 EOF
 
+append_log() {
+  tee -a "$LOG_FILE"
+}
+
 {
   echo "# Claude Code Conversation"
   echo
@@ -96,21 +103,22 @@ EOF
   echo
   echo "## Claude Code Response"
   echo
+} | append_log
 
-  if ! command -v claude >/dev/null 2>&1; then
-    echo "Claude Code CLI が見つかりません。"
-  else
-    RESPONSE="$(claude -p "$(cat "$PROMPT_FILE")" 2>&1)" || {
-      echo "Claude Code notification failed:"
+if ! command -v claude >/dev/null 2>&1; then
+  echo "Claude Code CLI が見つかりません。" | append_log
+else
+  set +e
+  claude -p "$(cat "$PROMPT_FILE")" 2>&1 | append_log
+  claude_status=${PIPESTATUS[0]}
+  set -e
+  if [[ $claude_status -ne 0 ]]; then
+    {
       echo
-      echo '```'
-      echo "$RESPONSE"
-      echo '```'
-      exit 0
-    }
-    echo "$RESPONSE"
+      echo "Claude Code notification failed with exit code ${claude_status}."
+    } | append_log
   fi
-} | tee "$LOG_FILE"
+fi
 
 rm -f "$PROMPT_FILE"
 

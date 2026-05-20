@@ -8,6 +8,12 @@ Each log contains:
 - Claude Code's response
 - branch, commit range, changed files, and diff summary
 
+`latest.md` points to the newest conversation log so it can be monitored with:
+
+```bash
+npm run monitor:claude
+```
+
 Use:
 
 ```bash

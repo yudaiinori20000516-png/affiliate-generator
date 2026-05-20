@@ -8,3 +8,5 @@ svgs/
 *.png
 *.txt
 .DS_Store
+claude_code_conversations/latest.md
+claude_code_conversations/waiting-for-claude-code.md

@@ -6,6 +6,8 @@
   "type": "module",
   "scripts": {
     "generate": "node generate.js",
+    "monitor:claude": "scripts/monitor-claude-code.sh",
+    "open:claude-monitor": "scripts/open-claude-monitor.sh",
     "notify:claude": "scripts/notify-claude-code.sh",
     "push:notify": "scripts/codex-push-notify.sh"
   },
