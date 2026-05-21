@@ -319,6 +319,31 @@ async function postToThreads(threadsText, noteUrl) {
   }
 }
 
+async function closeCropModalIfPresent(page) {
+  const cropOverlay = page.locator(".CropModal__overlay").first();
+  if (!await cropOverlay.isVisible({ timeout: 3000 }).catch(() => false)) return;
+
+  console.warn("  ⚠️  画像トリミングモーダルが残っているため閉じます。");
+  const preferredButton = cropOverlay.locator("button").filter({ hasText: /保存|決定|完了|追加/ }).last();
+  if (await preferredButton.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await preferredButton.click({ force: true });
+  } else {
+    const buttons = cropOverlay.locator("button");
+    const count = await buttons.count();
+    if (count > 0) {
+      await buttons.nth(count - 1).click({ force: true });
+    } else {
+      await page.keyboard.press("Enter");
+    }
+  }
+
+  await page.waitForTimeout(3000);
+  if (await cropOverlay.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await page.screenshot({ path: "note-crop-modal-stuck.png", fullPage: true });
+    throw new Error("画像トリミングモーダルを閉じられませんでした。");
+  }
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 7. Note有料記事投稿（500円）
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -351,11 +376,8 @@ async function postToNote(body, thumbnailPath) {
       page.locator("text=画像をアップロード").click(),
     ]);
     await fc.setFiles(thumbnailPath);
-    await page.waitForTimeout(3000);
-    const cropBtn = page.locator("button").filter({ hasText: /^保存$/ });
-    await cropBtn.waitFor({ timeout: 10000 });
-    await cropBtn.click();
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(5000);
+    await closeCropModalIfPresent(page);
     console.log("  ✅ サムネイル挿入完了");
 
     // 本文入力
@@ -370,8 +392,12 @@ async function postToNote(body, thumbnailPath) {
     await page.waitForTimeout(1000);
 
     // 公開設定へ
-    await page.click('button:has-text("公開に進む")');
-    await page.waitForTimeout(4000);
+    await closeCropModalIfPresent(page);
+    const publishSettingsBtn = page.locator('button:has-text("公開に進む")').last();
+    await publishSettingsBtn.waitFor({ timeout: 10000 });
+    await publishSettingsBtn.click();
+    await page.waitForSelector('text=記事タイプ', { timeout: 15000 });
+    await page.waitForTimeout(1000);
 
     // ハッシュタグ
     const hashInput = page.locator('input[placeholder*="ハッシュタグ"]');
@@ -399,10 +425,18 @@ async function postToNote(body, thumbnailPath) {
     }
     await priceInput.fill(String(PRICE));
     console.log(`  ✅ 価格${PRICE}円設定完了`);
+    const paidAreaButton = page.locator('button:has-text("有料エリア設定")').last();
+    if (await paidAreaButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await paidAreaButton.click();
+      await page.waitForTimeout(4000);
+      console.log("  ✅ 有料エリア設定へ反映");
+    }
     await page.waitForTimeout(1000);
 
     // 投稿
-    await page.locator('button:has-text("投稿する")').last().click();
+    const publishButton = page.locator('button:has-text("投稿する"), button:has-text("更新する")').last();
+    await publishButton.waitFor({ timeout: 30000 });
+    await publishButton.click();
     await page.waitForTimeout(5000);
     const url = toPublicNoteUrl(page.url());
     console.log(`  ✅ Note公開完了: ${url}`);

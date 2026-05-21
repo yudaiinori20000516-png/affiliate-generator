@@ -477,6 +477,31 @@ async function postToX(title) {
   }
 }
 
+async function closeCropModalIfPresent(page) {
+  const cropOverlay = page.locator(".CropModal__overlay").first();
+  if (!await cropOverlay.isVisible({ timeout: 3000 }).catch(() => false)) return;
+
+  console.warn("  ⚠️  画像トリミングモーダルが残っているため閉じます。");
+  const preferredButton = cropOverlay.locator("button").filter({ hasText: /保存|決定|完了|追加/ }).last();
+  if (await preferredButton.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await preferredButton.click({ force: true });
+  } else {
+    const buttons = cropOverlay.locator("button");
+    const count = await buttons.count();
+    if (count > 0) {
+      await buttons.nth(count - 1).click({ force: true });
+    } else {
+      await page.keyboard.press("Enter");
+    }
+  }
+
+  await page.waitForTimeout(3000);
+  if (await cropOverlay.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await page.screenshot({ path: "note-crop-modal-stuck.png", fullPage: true });
+    throw new Error("画像トリミングモーダルを閉じられませんでした。");
+  }
+}
+
 async function postToNote(title, body, thumbnailPath) {
   const { body: noteBody, isPaid, price } = preparePaidArticleBody(body);
   const browser = await chromium.launch({ headless: false });
@@ -542,12 +567,8 @@ async function postToNote(title, body, thumbnailPath) {
         page.locator("text=画像をアップロード").click(),
       ]);
       await fileChooser.setFiles(thumbnailPath);
-      await page.waitForTimeout(3000);
-      // トリミングダイアログの「保存」ボタン（「下書き保存」ではなく正確に「保存」のみ）
-      const cropSaveBtn = page.locator('button').filter({ hasText: /^保存$/ });
-      await cropSaveBtn.waitFor({ timeout: 10000 });
-      await cropSaveBtn.click();
-      await page.waitForTimeout(3000);
+      await page.waitForTimeout(5000);
+      await closeCropModalIfPresent(page);
       console.log("  ✅ サムネイル挿入完了");
     }
 
@@ -570,8 +591,12 @@ async function postToNote(title, body, thumbnailPath) {
 
     // 公開に進む
     console.log("  ⚙️  公開設定へ...");
-    await page.click('button:has-text("公開に進む")');
-    await page.waitForTimeout(3000);
+    await closeCropModalIfPresent(page);
+    const publishSettingsBtn = page.locator('button:has-text("公開に進む")').last();
+    await publishSettingsBtn.waitFor({ timeout: 10000 });
+    await publishSettingsBtn.click();
+    await page.waitForSelector('text=記事タイプ', { timeout: 15000 });
+    await page.waitForTimeout(1000);
 
     // ハッシュタグを入力
     console.log("  🏷️  ハッシュタグを設定中...");
@@ -601,6 +626,12 @@ async function postToNote(title, body, thumbnailPath) {
         } else {
           throw new Error("価格入力欄が見つかりません。有料記事として安全に投稿できないため停止します。");
         }
+        const paidAreaButton = page.locator('button:has-text("有料エリア設定")').last();
+        if (await paidAreaButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+          await paidAreaButton.click();
+          await page.waitForTimeout(4000);
+          console.log("  ✅ 有料エリア設定へ反映");
+        }
         await page.waitForTimeout(1000);
       } else {
         throw new Error("有料設定の選択肢が見つかりません。有料記事として安全に投稿できないため停止します。");
@@ -609,7 +640,8 @@ async function postToNote(title, body, thumbnailPath) {
 
     // 投稿する
     console.log("  🚀 投稿中...");
-    const publishBtn = page.locator('button:has-text("投稿する")').last();
+    const publishBtn = page.locator('button:has-text("投稿する"), button:has-text("更新する")').last();
+    await publishBtn.waitFor({ timeout: 30000 });
     await publishBtn.click();
     await page.waitForTimeout(4000);
 
